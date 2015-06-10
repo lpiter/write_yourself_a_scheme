@@ -2,7 +2,7 @@ module Main where
  import Text.ParserCombinators.Parsec hiding (spaces)
  import Control.Monad
  import Numeric
- import Data.Char (digitToInt)
+ import Data.Char
 
  data LispVal = Atom String
               | List [LispVal]
@@ -10,6 +10,8 @@ module Main where
               | Number Integer
               | String String
               | Bool Bool
+              | Character Char
+              | Float Double
               deriving Show
 
  symbol :: Parser Char
@@ -42,12 +44,7 @@ module Main where
  parseAtom = do
      first <- letter <|> symbol
      rest <- many $ letter <|> digit <|> symbol
-     let atom = first:rest
-     return $ case atom of
-         _    -> Atom atom
-
- parseNumber :: Parser LispVal
- parseNumber = liftM (Number . read) $ many1 digit
+     return $ Atom (first:rest)
 
  parseNumber' :: Parser LispVal
  parseNumber' = do
@@ -58,7 +55,10 @@ module Main where
  parseNumber'' = many1 digit >>= return . Number . read
 
  parseNumber''' :: Parser LispVal
- parseNumber''' = do
+ parseNumber''' = liftM (Number . read) $ many1 digit
+
+ parseNumber :: Parser LispVal
+ parseNumber = do
      x <- parseDecimal <|> parseDecimalWithRedix <|> parseOctal <|> parseHexadecimal <|> parseBinary
      return x
      where
@@ -74,16 +74,45 @@ module Main where
          parseBinary = try (string "#b") >> many1 (oneOf "01") >>=
              return . Number . (foldl (\z a -> a + 2 * z) 0) . (map $ toInteger . digitToInt)
 
+ parseFloat :: Parser LispVal
+ parseFloat = do
+     x <- many1 digit
+     _ <- char '.'
+     y <- many1 digit
+     return . Float . fst $ ((readFloat (x ++ "." ++ y)) !! 0)
+
+ parseCharacter :: Parser LispVal
+ parseCharacter = do
+     _ <- try (string "#\\")
+     c <- try singleChar <|> try characterName
+     return $ Character c
+     where
+         -- character names are case-insensitive
+         characterName = (ciString "space" >> return ' ')
+                     <|> (ciString "newline" >> return '\n')
+         singleChar = do
+             c <- anyChar
+             notFollowedBy alphaNum
+             return c
+         ciString = mapM (\c -> char (toLower c) <|> char (toUpper c)) -- case-insensitive string
+
  parseExpr :: Parser LispVal
- parseExpr = parseBool <|> parseAtom <|> parseString <|> parseNumber'''
+ parseExpr = parseAtom
+         <|> try parseString
+         <|> try parseFloat
+         <|> try parseNumber
+         <|> try parseBool
+         <|> try parseCharacter
 
  readExpr :: String -> String
  readExpr input = case parse parseExpr "lisp" input of
      Left err -> "No match: " ++ show err
-     Right val -> "Parsed: " ++ show val
+     Right val -> show val
 
  main :: IO ()
- main = do
-     putStrLn $ show $ head args
-     putStrLn $ readExpr $ head args
-     where args = ["\"This \\n is \\\" a string\""]
+ main = mapM readArg args >> return ()
+     where
+         args = ["12.33", "12", "#\\NeWline", "#\\a", "#x123", "\"This \\n is \\\" a string\""]
+         readArg a = do
+             putStrLn $ show a ++ " --> " ++ show (readExpr a)
+
