@@ -1,0 +1,19 @@
+name:                scheme-parser
+version:             0.1.0.0
+synopsis:            Initial project template from stack
+description:         Please see README.md
+homepage:            http://github.com/name/project
+license:             BSD3
+author:              Your name here
+maintainer:          your.address@example.com
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable scheme-parser
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , parsec
+  default-language:    Haskell2010
